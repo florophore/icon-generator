@@ -409,7 +409,7 @@ export async function generate(
         bodyTSCode += `  },\n`;
       }
     }
-    bodyTSCode += `} as Icons;`;
+    bodyTSCode += `} as unknown as Icons;`;
 
     const tsCode = `${headTSCode}\n${bodyTSCode}\n\n${GET_ICON}`;
     const indexFilePath = path.join(outDir, "index.ts");
