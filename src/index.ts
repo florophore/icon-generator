@@ -14,6 +14,7 @@ import {
   JSONSchemaInput,
   TypeScriptTargetLanguage,
 } from "quicktype-core";
+export { getJSON } from "./get-json";
 
 type Languages = "typescript";
 
@@ -23,97 +24,6 @@ export function filename() {
 
 export function getFloroGenerator() {
   return floroGeneratorFile;
-}
-
-export async function getJSON<T>(
-  state: SchemaRoot,
-  args?: {
-    assetHost?: string;
-    svgPreprocessor?: (svg: string) => Promise<string>;
-  },
-  mode?: "build" | "hot" | "live-update",
-  assetAccessor?: (binaryRef: string) => Promise<string | Buffer | null>
-): Promise<T> {
-  const themes = getReferencedObject(state, "$(theme).themes");
-  const iconGroups = getReferencedObject(state, "$(icons).iconGroups");
-  const iconsObject = {};
-  for (const iconGroup of iconGroups) {
-    const iconGroupId = iconGroup.id;
-    for (const icon of iconGroup.icons) {
-      const iconId = icon.id;
-      const iconKey = `${iconGroupId}.${iconId}`;
-      iconsObject[iconKey] = {
-        default: {},
-        variants: {},
-      };
-      const svgData = (await assetAccessor?.(icon.svg)) as string;
-      const appliedThemes = icon.appliedThemes.reduce((acc, appliedTheme) => {
-        return {
-          ...acc,
-          [appliedTheme.hexcode]: appliedTheme.themeDefinition,
-        };
-      }, {});
-
-      for (const theme of themes) {
-        const themeRef = makeQueryRef("$(theme).themes.id<?>", theme.id);
-        const themedSvg = rethemeSvg(state, svgData, appliedThemes, themeRef);
-        const preprocessedSvg =
-          (await args?.svgPreprocessor?.(themedSvg)) ?? themedSvg;
-        const hash = shortHash(preprocessedSvg);
-        const iconFileName = `${iconKey}.default.${theme.id}.${hash}.svg`;
-        if (mode == "live-update") {
-          iconsObject[iconKey].default[theme.id] = `${
-            args?.assetHost ?? ""
-          }/${iconFileName}`;
-        }
-        if (mode == "hot") {
-          iconsObject[iconKey].default[theme.id] = encodeToSvg(preprocessedSvg);
-        }
-      }
-
-      const enabledVariantIds = icon.enabledVariants
-        ?.filter((ev) => ev.enabled)
-        .map((ev) => {
-          return getReferencedObject(state, ev.id);
-        })
-        .map((s) => s.id);
-      for (const variantId of enabledVariantIds) {
-        const variantRef = makeQueryRef(
-          "$(theme).stateVariants.id<?>",
-          variantId
-        );
-        for (const variantId of enabledVariantIds) {
-          iconsObject[iconKey].variants[variantId] = {};
-          for (const theme of themes) {
-            const themeRef = makeQueryRef("$(theme).themes.id<?>", theme.id);
-            const variantSvg = rethemeSvg(
-              state,
-              svgData,
-              appliedThemes,
-              themeRef,
-              null,
-              null,
-              variantRef
-            );
-            const preprocessedSvg =
-              (await args?.svgPreprocessor?.(variantSvg)) ?? variantSvg;
-            const hash = shortHash(preprocessedSvg);
-            const iconFileName = `${iconKey}.${variantId}.${theme.id}.${hash}.svg`;
-            if (mode == "live-update") {
-              iconsObject[iconKey].variants[variantId][theme.id] = `${
-                args?.assetHost ?? ""
-              }/${iconFileName}`;
-            }
-            if (mode == "hot") {
-              iconsObject[iconKey].variants[variantId][theme.id] =
-                encodeToSvg(preprocessedSvg);
-            }
-          }
-        }
-      }
-    }
-  }
-  return iconsObject as T;
 }
 
 const findHexIndicesInSvg = (svg: string, hexcode: string) => {
@@ -284,10 +194,6 @@ const shortHash = (str: string): string => {
     hash &= hash;
   }
   return new Uint32Array([hash])[0].toString(16);
-};
-
-const encodeToSvg = (svg: string): string => {
-  return `data:image/svg+xml,${encodeURIComponent(svg ?? "")}`;
 };
 
 const GET_ICON = `
