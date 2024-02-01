@@ -14,6 +14,7 @@ import {
   JSONSchemaInput,
   TypeScriptTargetLanguage,
 } from "quicktype-core";
+import { svgRemap } from "./get-json";
 export { getJSON } from "./get-json";
 
 type Languages = "typescript";
@@ -309,6 +310,14 @@ export async function generate(
 
   const iconsDir = path.join(outDir, "icons");
   await fs.promises.mkdir(iconsDir, { recursive: true });
+  const paletteColors = state?.palette?.colorPalettes.flatMap((color) => {
+    return color?.colorShades?.flatMap(colorShade => {
+      return {
+        hexcode: colorShade.hexcode,
+        ref: makeQueryRef("$(palette).colorPalettes.id<?>.colorShades.id<?>", color.id, colorShade.id)
+      }
+    })
+  })
 
   if (args.lang == "typescript") {
     let headTSCode = `import { Icons, Theme } from "./types";\n\n`;
@@ -321,7 +330,21 @@ export async function generate(
       for (const icon of iconGroup.icons) {
         const iconId = icon.id;
         const iconKey = `${iconGroupId}.${iconId}`;
-        const svgData = (await assetAccessor(icon.svg)) as string;
+        const remappedColors = icon?.appliedPaletteColors?.reduce?.((acc, appliedPaletteColor) => {
+          if (!appliedPaletteColor.paletteColor) {
+            return {
+              ...acc,
+              [appliedPaletteColor.hexcode]: appliedPaletteColor.hexcode
+            }
+          }
+          const paletteColor = getReferencedObject(state, appliedPaletteColor.paletteColor);
+          return {
+            ...acc,
+            [appliedPaletteColor.hexcode]: paletteColor?.hexcode + 'FF'
+          }
+        }, {}) ?? {};
+        const rawSvgData = (await assetAccessor(icon.svg)) as string;
+        const svgData = svgRemap(rawSvgData, remappedColors);
         const appliedThemes = icon.appliedThemes.reduce((acc, appliedTheme) => {
           return {
             ...acc,

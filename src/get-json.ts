@@ -31,6 +31,14 @@ export async function getJSON<T>(
 ): Promise<T> {
   const themes = getReferencedObject(state, "$(theme).themes");
   const iconGroups = getReferencedObject(state, "$(icons).iconGroups");
+  const paletteColors = state?.palette?.colorPalettes.flatMap((color) => {
+    return color?.colorShades?.flatMap(colorShade => {
+      return {
+        hexcode: colorShade.hexcode,
+        ref: makeQueryRef("$(palette).colorPalettes.id<?>.colorShades.id<?>", color.id, colorShade.id)
+      }
+    })
+  })
   const iconsObject = {};
   for (const iconGroup of iconGroups) {
     const iconGroupId = iconGroup.id;
@@ -41,7 +49,21 @@ export async function getJSON<T>(
         default: {},
         variants: {},
       };
-      const svgData = (await assetAccessor?.(icon.svg)) as string;
+      const remappedColors = icon?.appliedPaletteColors?.reduce?.((acc, appliedPaletteColor) => {
+        if (!appliedPaletteColor.paletteColor) {
+          return {
+            ...acc,
+            [appliedPaletteColor.hexcode]: appliedPaletteColor.hexcode
+          }
+        }
+        const paletteColor = getReferencedObject(state, appliedPaletteColor.paletteColor);
+        return {
+          ...acc,
+          [appliedPaletteColor.hexcode]: paletteColor?.hexcode + 'FF'
+        }
+      }, {}) ?? {};
+      const svgDataRaw = (await assetAccessor?.(icon.svg)) as string;
+      const svgData = svgRemap(svgDataRaw, remappedColors);
       const appliedThemes = icon.appliedThemes.reduce((acc, appliedTheme) => {
         return {
           ...acc,
@@ -136,6 +158,18 @@ const replaceHexIndicesInSvg = (
     }
   }
   return outSvg.join("");
+};
+
+export const svgRemap = (
+  svgData: string|undefined|null,
+  remap: { [color: string]: string }
+) => {
+  if (!svgData) {
+    return "";
+  }
+  return Object.keys(remap).reduce((s, key) => {
+    return s.replaceAll(key, remap[key]);
+  }, svgData);
 };
 
 const rethemeSvg = (
