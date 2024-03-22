@@ -1,6 +1,6 @@
 {
   "name": "@floro/icon-generator",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "main": "./dist/cjs/src/index.js",
   "module": "./src/esm/src/get-json.js",
   "types": "./dist/types/src/index.d.ts",
